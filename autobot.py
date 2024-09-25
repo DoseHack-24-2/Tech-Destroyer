@@ -1,11 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
-from matplotlib.widgets import Button 
+from matplotlib.widgets import Button
 import tkinter as tk
 from tkinter import simpledialog
 from tkinter import Canvas
 import heapq
+from tkinter import messagebox
+import sys
 
 def heuristic(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -48,31 +50,52 @@ class Autobot:
         self.name = name
         self.grid = grid
         self.path = astar(grid, start, end)
+        print(f"{self.name} starts at {self.position}")  
         self.simulation = simulation  
+
+        if self.path is None:  
+            messagebox.showinfo("Alert", f"Path for {self.name} is not found due to obstacles.")
+        else:
+            print(f"{self.name} starts at {self.position}")  
 
     def move(self):
         if self.path:
             step = self.path.pop(0)
-            print(f"{self.name} moves to {step}")
+            direction = "initial point"
+            if step[0] > self.position[0]:  
+                direction = "down"
+            elif step[0] < self.position[0]:  
+                direction = "up"
+            elif step[1] > self.position[1]:  
+                direction = "right"
+            elif step[1] < self.position[1]: 
+                direction = "left"
+
+            print(f"{self.name} moves from {self.position} to {step} ({direction})")
             self.grid[self.position] = 0  
             self.position = step
-            self.grid[self.position] = self.name
-            
-            self.simulation.update()
+            self.grid[self.position] = self.name  
+            text_x = self.position[1]  
+            text_y = self.simulation.grid.shape[0] - 1 - self.position[0]  
+            self.simulation.ax.text(text_x, text_y, self.name, ha='center', va='center', color='white', fontsize=12)
+            self.simulation.update() 
             
         else:
-       
             print(f"{self.name} has reached its destination.")
             if self.name == "A1":
                 self.simulation.goal_a1_circle.set_visible(False) 
                 red_circle = Circle((self.position[1], self.simulation.grid.shape[0] - 1 - self.position[0]), 0.3, color='red')
                 self.simulation.ax.add_patch(red_circle)
+                
+            
             elif self.name == "A2":
                 self.simulation.goal_a2_circle.set_visible(False) 
                 red_circle = Circle((self.position[1], self.simulation.grid.shape[0] - 1 - self.position[0]), 0.3, color='red')
                 self.simulation.ax.add_patch(red_circle)
+     
             
             self.simulation.update()  
+
 class AutoBotSimulation:
     def __init__(self, grid, start_a1, start_a2, goal_a1, goal_a2):
         self.grid = grid
@@ -89,16 +112,32 @@ class AutoBotSimulation:
         self.create_obstacles()
         self.a1_circle = Circle((start_a1[1], grid.shape[0] - 1 - start_a1[0]), 0.3, color='blue')
         self.a2_circle = Circle((start_a2[1], grid.shape[0] - 1 - start_a2[0]), 0.3, color='blue')
+        self.ax.text(start_a1[1], grid.shape[0]-1-start_a1[0], 'A1', ha='center', va='center', color='white', fontsize=12)
+        self.ax.text(start_a2[1], grid.shape[0]-1-start_a2[0], 'A2', ha='center', va='center', color='white', fontsize=12)
         self.ax.add_patch(self.a1_circle)
         self.ax.add_patch(self.a2_circle)
 
         self.goal_a1_circle = Circle((goal_a1[1], grid.shape[0] - 1 - goal_a1[0]), 0.3, color='yellow')
         self.goal_a2_circle = Circle((goal_a2[1], grid.shape[0] - 1 - goal_a2[0]), 0.3, color='yellow')
+        self.ax.text(goal_a1[1], grid.shape[0]-1-goal_a1[0], 'B1', ha='center', va='center', color='black', fontsize=12)
+        self.ax.text(goal_a2[1], grid.shape[0]-1-goal_a2[0], 'B2', ha='center', va='center', color='black', fontsize=12)
         self.ax.add_patch(self.goal_a1_circle)
         self.ax.add_patch(self.goal_a2_circle)
         
+        
         self.next_step_button = Button(plt.axes([0.8, 0.01, 0.1, 0.05]), 'Next Step')
         self.next_step_button.on_clicked(lambda event: self.next_step())
+
+        if self.autobot1.path is None and self.autobot2.path is None:
+            messagebox.showinfo("Error", "Paths for both autobots are blocked by obstacles.")
+            self.next_step_button.ax.set_visible(False) 
+            sys.exit()
+        elif self.autobot1.path is None:
+            messagebox.showinfo("Warning", "Path for A1 is blocked. Only A2 will move.")
+        elif self.autobot2.path is None:
+            messagebox.showinfo("Warning", "Path for A2 is blocked. Only A1 will move.")
+        
+        self.update()
 
     def create_obstacles(self):
         for i in range(self.grid.shape[0]):
@@ -107,17 +146,20 @@ class AutoBotSimulation:
                     self.ax.add_patch(plt.Rectangle((j - 0.5, self.grid.shape[0] - 1 - i - 0.5), 1, 1, color='black'))
 
     def update(self):
-        self.a1_circle.center = (self.autobot1.position[1], self.grid.shape[0] - 1 - self.autobot1.position[0])
-        self.a2_circle.center = (self.autobot2.position[1], self.grid.shape[0] - 1 - self.autobot2.position[0])
+        if self.autobot1.path is not None:
+            self.a1_circle.center = (self.autobot1.position[1], self.grid.shape[0] - 1 - self.autobot1.position[0])
+        if self.autobot2.path is not None:
+            self.a2_circle.center = (self.autobot2.position[1], self.grid.shape[0] - 1 - self.autobot2.position[0])
         plt.draw()
 
     def start_simulation(self):
         plt.show()
 
     def next_step(self):
-        
-        self.autobot1.move()
-        self.autobot2.move()
+        if self.autobot1.path is not None:
+            self.autobot1.move()
+        if self.autobot2.path is not None:
+            self.autobot2.move()
         self.update()
 
 class GridCreator(tk.Tk):
@@ -156,42 +198,35 @@ class GridCreator(tk.Tk):
     def add_obstacle(self, event):
         row = event.y // 30
         col = event.x // 30
-        if 0 <= row < self.grid_size and 0 <= col < self.grid_size:
-            self.grid[row][col] = 1
-            x0 = col * 30
-            y0 = row * 30
-            self.canvas.create_rectangle(x0, y0, x0 + 30, y0 + 30, fill="black")
+        if self.grid[row, col] == 0:
+            self.grid[row, col] = 1
+            self.canvas.create_rectangle(col * 30, row * 30, (col + 1) * 30, (row + 1) * 30, fill="black")
 
     def set_start_and_goal(self, event):
         row = event.y // 30
         col = event.x // 30
-        if 0 <= row < self.grid_size and 0 <= col < self.grid_size:
-            if self.start_a1 is None:
-                self.start_a1 = (row, col)
-                self.canvas.create_oval(col * 30 + 5, row * 30 + 5, col * 30 + 25, row * 30 + 25, fill='blue')
-            elif self.start_a2 is None:
-                self.start_a2 = (row, col)
-                self.canvas.create_oval(col * 30 + 5, row * 30 + 5, col * 30 + 25, row * 30 + 25, fill='blue')
-            elif self.goal_a1 is None:
-                self.goal_a1 = (row, col)
-                self.canvas.create_oval(col * 30 + 5, row * 30 + 5, col * 30 + 25, row * 30 + 25, fill='yellow')
-            elif self.goal_a2 is None:
-                self.goal_a2 = (row, col)
-                self.canvas.create_oval(col * 30 + 5, row * 30 + 5, col * 30 + 25, row * 30 + 25, fill='yellow')
-                self.start_button.config(state=tk.NORMAL)
+
+        if self.start_a1 is None:
+            self.start_a1 = (row, col)
+            self.canvas.create_oval(col * 30, row * 30, (col + 1) * 30, (row + 1) * 30, fill="blue")
+        elif self.start_a2 is None:
+            self.start_a2 = (row, col)
+            self.canvas.create_oval(col * 30, row * 30, (col + 1) * 30, (row + 1) * 30, fill="blue")
+        elif self.goal_a1 is None:
+            self.goal_a1 = (row, col)
+            self.canvas.create_oval(col * 30, row * 30, (col + 1) * 30, (row + 1) * 30, fill="yellow")
+        elif self.goal_a2 is None:
+            self.goal_a2 = (row, col)
+            self.canvas.create_oval(col * 30, row * 30, (col + 1) * 30, (row + 1) * 30, fill="yellow")
+
+        if self.start_a1 and self.start_a2 and self.goal_a1 and self.goal_a2:
+            self.start_button.config(state=tk.NORMAL)
 
     def start_simulation(self):
-        if None not in (self.start_a1, self.start_a2, self.goal_a1, self.goal_a2):
-            self.grid[self.start_a1] = 0
-            self.grid[self.start_a2] = 0
-            self.grid[self.goal_a1] = 0
-            self.grid[self.goal_a2] = 0
-            
-            simulation = AutoBotSimulation(self.grid.copy(), self.start_a1, self.start_a2, self.goal_a1, self.goal_a2)
-            self.withdraw()  
-            simulation.start_simulation()
+        self.destroy()
+        simulation = AutoBotSimulation(self.grid, self.start_a1, self.start_a2, self.goal_a1, self.goal_a2)
+        simulation.start_simulation()
 
 if __name__ == "__main__":
     app = GridCreator()
     app.mainloop()
-    
