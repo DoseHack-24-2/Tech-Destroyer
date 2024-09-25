@@ -78,11 +78,6 @@ class Autobot:
         
         self.label_text = self.simulation.ax.text(self.position[1], self.simulation.grid.shape[0] - 1 - self.position[0], self.name,
                                                    ha='center', va='center', color='#333', fontsize=12)
-        if self.path is None or len(self.path) == 0:  
-            print(f"Alert: Path for {self.name} is not found due to obstacles.")
-        else:
-            print(f"{self.name} starts at {self.position}")
-
 
     def move(self):
         if not self.path:
@@ -133,6 +128,8 @@ class AutoBotSimulation:
         self.ax.grid(True, color='white', linewidth=0.5) 
         self.ax.set_xlim(-0.5, grid.shape[1] - 0.5)
         self.ax.set_ylim(-0.5, grid.shape[0] - 0.5)
+
+     
 
         for idx, (start, goal) in enumerate(zip(autobot_starts, autobot_goals)):
             autobot = Autobot(start, goal, f"A{idx+1}", grid, self)  
@@ -227,7 +224,7 @@ class GridCreator(tk.Tk):
     def add_obstacle(self, event):
         row = event.y // 30
         col = event.x // 30
-        if self.grid[row, col] == 0:  
+        if self.grid[row, col] == 0 and ((len(self.autobot_starts) == 0 or len(self.autobot_starts) == len(self.autobot_goals)) or (len(self.autobot_starts) > len(self.autobot_goals))):  
             self.grid[row, col] = 1
             self.canvas.create_rectangle(col * 30, row * 30, (col + 1) * 30, (row + 1) * 30, fill="black")
         elif self.grid[row, col] == 1:  
@@ -237,11 +234,11 @@ class GridCreator(tk.Tk):
     def set_start_and_goal(self, event):
         row = event.y // 30
         col = event.x // 30
-        if len(self.autobot_starts) == 0 or len(self.autobot_starts) == len(self.autobot_goals):
+        if (len(self.autobot_starts) == 0 or len(self.autobot_starts) == len(self.autobot_goals)) and self.grid[row, col] == 0:
             self.grid[row, col] = "S"
             self.autobot_starts.append((row, col))
             self.canvas.create_oval(col * 30 + 5, row * 30 + 5, (col + 1) * 30 - 5, (row + 1) * 30 - 5, fill="blue")
-        elif len(self.autobot_starts) > len(self.autobot_goals):
+        elif (len(self.autobot_starts) > len(self.autobot_goals)) and self.grid[row, col] == 0:
             self.grid[row, col] = "G"
             self.autobot_goals.append((row, col))
             self.canvas.create_oval(col * 30 + 5, row * 30 + 5, (col + 1) * 30 - 5, (row + 1) * 30 - 5, fill="yellow")
