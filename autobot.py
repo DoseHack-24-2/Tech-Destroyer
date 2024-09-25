@@ -50,8 +50,9 @@ class Autobot:
         self.name = name
         self.grid = grid
         self.path = astar(grid, start, end)
-        print(f"{self.name} starts at {self.position}")  
-        self.simulation = simulation  
+        self.time = -1
+        self.waiting_time = 0
+        self.simulation = simulation
 
         if self.path is None:  
             messagebox.showinfo("Alert", f"Path for {self.name} is not found due to obstacles.")
@@ -71,6 +72,17 @@ class Autobot:
             elif step[1] < self.position[1]: 
                 direction = "left"
 
+            if self.name == "A1" and self.simulation.autobot2.position == step:
+                print(f"{self.name} waits for A2 to move away from {step}")
+                self.path.insert(0, step) 
+                self.waiting_time += 1
+                return
+            elif self.name == "A2" and self.simulation.autobot1.position == step:
+                print(f"{self.name} waits for A1 to move away from {step}")
+                self.path.insert(0, step)  
+                self.waiting_time += 1
+                return
+
             print(f"{self.name} moves from {self.position} to {step} ({direction})")
             self.grid[self.position] = 0  
             self.position = step
@@ -79,6 +91,20 @@ class Autobot:
             text_y = self.simulation.grid.shape[0] - 1 - self.position[0]  
             self.simulation.ax.text(text_x, text_y, self.name, ha='center', va='center', color='white', fontsize=12)
             self.simulation.update() 
+            self.time += 1
+            if not self.path:
+                if self.name=="A1":
+                    self.simulation.goal_a1_circle.set_visible(False) 
+                    red_circle = Circle((self.position[1], self.simulation.grid.shape[0] - 1 - self.position[0]), 0.3, color='red')
+                    self.simulation.ax.add_patch(red_circle)
+                    if self.simulation.text_b1:
+                        self.simulation.text_b1.remove();
+                elif self.name == "A2":
+                    self.simulation.goal_a2_circle.set_visible(False) 
+                    red_circle = Circle((self.position[1], self.simulation.grid.shape[0] - 1 - self.position[0]), 0.3, color='red')
+                    self.simulation.ax.add_patch(red_circle)
+                    if self.simulation.text_b2:
+                        self.simulation.text_b2.remove();
             
         else:
             print(f"{self.name} has reached its destination.")
@@ -87,17 +113,15 @@ class Autobot:
                 red_circle = Circle((self.position[1], self.simulation.grid.shape[0] - 1 - self.position[0]), 0.3, color='red')
                 self.simulation.ax.add_patch(red_circle)
                 
-            
             elif self.name == "A2":
                 self.simulation.goal_a2_circle.set_visible(False) 
                 red_circle = Circle((self.position[1], self.simulation.grid.shape[0] - 1 - self.position[0]), 0.3, color='red')
                 self.simulation.ax.add_patch(red_circle)
      
-            
             self.simulation.update()  
 
 class AutoBotSimulation:
-    def __init__(self, grid, start_a1, start_a2, goal_a1, goal_a2):
+    def __init__(self, grid, start_a1 , start_a2, goal_a1, goal_a2):
         self.grid = grid
         self.autobot1 = Autobot(start_a1, goal_a1, "A1", grid, self)
         self.autobot2 = Autobot(start_a2, goal_a2, "A2", grid, self)  
@@ -116,11 +140,10 @@ class AutoBotSimulation:
         self.ax.text(start_a2[1], grid.shape[0]-1-start_a2[0], 'A2', ha='center', va='center', color='white', fontsize=12)
         self.ax.add_patch(self.a1_circle)
         self.ax.add_patch(self.a2_circle)
-
         self.goal_a1_circle = Circle((goal_a1[1], grid.shape[0] - 1 - goal_a1[0]), 0.3, color='yellow')
         self.goal_a2_circle = Circle((goal_a2[1], grid.shape[0] - 1 - goal_a2[0]), 0.3, color='yellow')
-        self.ax.text(goal_a1[1], grid.shape[0]-1-goal_a1[0], 'B1', ha='center', va='center', color='black', fontsize=12)
-        self.ax.text(goal_a2[1], grid.shape[0]-1-goal_a2[0], 'B2', ha='center', va='center', color='black', fontsize=12)
+        self.text_b1 =self.ax.text(goal_a1[1], grid.shape[0]-1-goal_a1[0], 'B1', ha='center', va='center', color='black', fontsize=12)
+        self.text_b2 =self.ax.text(goal_a2[1], grid.shape[0]-1-goal_a2[0], 'B2', ha='center', va='center', color='black', fontsize=12)
         self.ax.add_patch(self.goal_a1_circle)
         self.ax.add_patch(self.goal_a2_circle)
         
@@ -146,10 +169,12 @@ class AutoBotSimulation:
                     self.ax.add_patch(plt.Rectangle((j - 0.5, self.grid.shape[0] - 1 - i - 0.5), 1, 1, color='black'))
 
     def update(self):
-        if self.autobot1.path is not None:
+        if self.autobot1.path is not None :
             self.a1_circle.center = (self.autobot1.position[1], self.grid.shape[0] - 1 - self.autobot1.position[0])
+            self.ax.text(self.autobot1.position[1], self.grid.shape[0]-1-self.autobot1.position[0], 'A1', ha='center', va='center', color='white', fontsize=12)
         if self.autobot2.path is not None:
             self.a2_circle.center = (self.autobot2.position[1], self.grid.shape[0] - 1 - self.autobot2.position[0])
+            self.ax.text(self.autobot2.position[1], self.grid.shape[0]-1-self.autobot2.position[0], 'A2', ha='center', va='center', color='white', fontsize=12)
         plt.draw()
 
     def start_simulation(self):
@@ -160,6 +185,8 @@ class AutoBotSimulation:
             self.autobot1.move()
         if self.autobot2.path is not None:
             self.autobot2.move()
+        print(f"A1 time: {self.autobot1.time}, waiting time: {self.autobot1.waiting_time}, moves:  {self.autobot1.time}")
+        print(f"A2 time: {self.autobot2.time}, waiting time: {self.autobot2.waiting_time}, moves: {self.autobot2.time}")
         self.update()
 
 class GridCreator(tk.Tk):
@@ -229,4 +256,4 @@ class GridCreator(tk.Tk):
 
 if __name__ == "__main__":
     app = GridCreator()
-    app.mainloop()
+    app .mainloop()
