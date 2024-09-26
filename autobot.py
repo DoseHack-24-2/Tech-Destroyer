@@ -22,7 +22,6 @@ class QLearning:
         self.actions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
     def is_collision(self, next_state):
-        # Check if the next state collides with any other autobot's position
         for bot in self.autobots:
             if bot.position == next_state and bot.position != self.start:
                 return True
@@ -40,17 +39,16 @@ class QLearning:
                 action = self.actions[action_idx]
                 next_state = (state[0] + action[0], state[1] + action[1])
 
-                # Check for out of bounds or obstacle
                 if not (0 <= next_state[0] < self.grid.shape[0] and 0 <= next_state[1] < self.grid.shape[1]) or self.grid[next_state] == 1:
-                    reward = -100  # Penalty for hitting a wall
+                    reward = -100  
                     next_state = state
                 elif self.is_collision(next_state):
-                    reward = -50  # Penalty for colliding with another bot
+                    reward = -50  
                     next_state = state
                 elif next_state == self.goal:
-                    reward = 100  # Reward for reaching the goal
+                    reward = 100  
                 else:
-                    reward = -1  # Small penalty for each step taken
+                    reward = -1  
 
                 # Q-learning update
                 old_value = self.q_table[state[0], state[1], action_idx]
@@ -89,8 +87,8 @@ class Autobot:
         self.at_destination = False
         self.time = -1
         self.waiting_time = 0
-        self.is_waiting = False  # Flag to track if autobot is waiting
-        self.gave_way = False  # Flag to track if autobot gave way temporarily
+        self.is_waiting = False  
+        self.gave_way = False  
         self.command_count = 0
 
         self.label_text = self.simulation.ax.text(self.position[1], self.simulation.grid.shape[0] - 1 - self.position[0], self.name,
@@ -109,11 +107,10 @@ class Autobot:
         """ Find a safe adjacent cell to move to temporarily. """
         for action in self.q_learning.actions:
             temp_pos = (self.position[0] + action[0], self.position[1] + action[1])
-            # Ensure the temporary position is within bounds, not an obstacle, and not occupied by another bot
             if 0 <= temp_pos[0] < self.grid.shape[0] and 0 <= temp_pos[1] < self.grid.shape[1] and self.grid[temp_pos] != 1:
                 if not any(bot.position == temp_pos for bot in self.simulation.autobots):
                     return temp_pos
-        return None  # No safe position found
+        return None  
 
     def move(self):
         if not self.path:
@@ -124,20 +121,18 @@ class Autobot:
             next_step = self.path[0]
 
             if self.is_face_to_face(next_step):
-                # Face-to-face situation detected
                 print(f"{self.name} is in a face-to-face situation.")
                 if not self.gave_way:
                     safe_move = self.find_safe_move()
                     if safe_move:
                         print(f"{self.name} gives way and moves temporarily to {safe_move}.")
                         
-                        # Update label text position after giving way
                         self.position = safe_move
                         self.label_text.set_position((safe_move[1], self.simulation.grid.shape[0] - 1 - safe_move[0]))
                         self.gave_way = True
                         self.waiting_time += 1
                         self.command_count += 1
-                        return  # Autobots wait after giving way
+                        return  
                     else:
                         print(f"{self.name} cannot find a temporary move.")
                         self.waiting_time += 1
@@ -145,9 +140,8 @@ class Autobot:
                         return
                 else:
                     print(f"{self.name} has already given way, resuming movement.")
-                    self.gave_way = False  # Reset give way flag
+                    self.gave_way = False  
 
-            # Check for collisions
             for autobot in self.simulation.autobots:
                 if autobot.position == next_step and autobot.name != self.name:
                     print(f"{self.name} waiting due to potential collision with {autobot.name}.")
@@ -156,25 +150,23 @@ class Autobot:
                     self.command_count += 1
                     return
 
-            # Proceed with movement if no collisions or face-to-face conflicts
+
             print(f"{self.name} moves from {self.position} to {next_step}.")
             self.command_count += 1
             if next_step == self.destination:
                 self.at_destination = True
                 print(f"{self.name} reached destination {self.destination}.")
             else:
-                # Update label text position after normal movement
                 self.label_text.set_position((next_step[1], self.simulation.grid.shape[0] - 1 - next_step[0]))
 
             self.position = next_step
             self.path.pop(0)
             self.time += 1
             self.is_waiting = False
-            self.waiting_time = 0  # Reset waiting time after moving
+            self.waiting_time = 0  
         else:
             print(f"{self.name} has reached its destination or has no valid path.")
 
-        # If waiting too long, alert user
         if self.waiting_time > 5:
             messagebox.showinfo("Alert", f"{self.name} cannot reach its destination due to obstacles.")
             self.at_destination = True
@@ -186,13 +178,9 @@ class Autobot:
         close_bots = [bot for bot in other_autobots if abs(bot.position[0] - next_step[0]) <= 1 and abs(bot.position[1] - next_step[1]) <= 1]
 
         if close_bots:
-            # Offset the text position if there are other autobots nearby
             self.label_text.set_position((next_step[1] + 0.3, self.simulation.grid.shape[0] - 1 - next_step[0] - 0.3))
         else:
-            # Default text position
             self.label_text.set_position((next_step[1], self.simulation.grid.shape[0] - 1 - next_step[0]))
-
-
 
 
 
@@ -309,7 +297,7 @@ class GridCreator(tk.Tk):
                 y0 = i * 30
                 x1 = x0 + 30
                 y1 = y0 + 30
-                self.canvas.create_rectangle(x0, y0, x1, y1, outline="gray", fill="lightgray")  # Improved grid look
+                self.canvas.create_rectangle(x0, y0, x1, y1, outline="gray", fill="lightgray")
 
     def add_obstacle(self, event):
         row = event.y // 30
