@@ -35,3 +35,34 @@ Make sure you have the following installed:
 4. Run the script using:
    ```bash
    python autobot.py
+
+## Demonstration
+- Provide grid size as input (n x n).
+
+![image_1](./images/1.png)
+
+### The Grid Creator window has two features: one for adding obstacles and another for setting bot starting and ending points. 
+- If we click the left mouse button, an obstacle (black box) will be added.
+- If we click the right mouse button, the first click will add the starting point (blue), and the second click will add the ending point (yellow).
+![image_1](./images/2.png)
+
+
+![image_1](./images/3.png)
+
+![image_1](./images/4.png)
+
+![image_1](./images/5.png)
+
+![image_1](./images/6.png)
+
+![image_1](./images/7.png)
+
+![image_1](./images/8.png)
+
+![image_1](./images/9.png)
+
+![image_1](./images/10.png)
+
+### Terminal Output
+
+![image_1](./images/11.png)
