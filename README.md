@@ -37,7 +37,7 @@ Make sure you have the following installed:
    python autobot.py
 
 ## Demonstration
-- Provide grid size as input (n x n).
+- Provide grid size as input (n x n), maximum n is 25 Due to screen size limitations.
 
 ![image_1](./images/1.png)
 
