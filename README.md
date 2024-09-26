@@ -44,7 +44,7 @@ Make sure you have the following installed:
 ### The Grid Creator window has two features: one for adding obstacles and another for setting bot starting and ending points. 
 - If we click the left mouse button, an obstacle (black box) will be added.
 - If we click the right mouse button, the first click will add the starting point (blue), and the second click will add the ending point (yellow).
-- 
+
 ![image_1](./images/2.png)
 
 
