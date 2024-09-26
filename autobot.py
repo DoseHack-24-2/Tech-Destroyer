@@ -7,17 +7,26 @@ from tkinter import simpledialog, Canvas, messagebox
 from tkinter import messagebox
 
 class QLearning:
-    def __init__(self, grid, start, goal, learning_rate=0.1, discount_factor=0.95, exploration_rate=1.0, exploration_decay=0.99, min_exploration_rate=0.01):
+    def __init__(self, grid, start, goal, autobots, other_bots=None, learning_rate=0.1, discount_factor=0.95, exploration_rate=1.0, exploration_decay=0.99, min_exploration_rate=0.01):
         self.grid = grid
         self.start = start
         self.goal = goal
-        self.q_table = np.zeros((grid.shape[0], grid.shape[1], 4)) 
+        self.autobots = autobots
+        self.other_bots = other_bots if other_bots is not None else []
+        self.q_table = np.zeros((grid.shape[0], grid.shape[1], 4))
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
         self.exploration_rate = exploration_rate
         self.exploration_decay = exploration_decay
         self.min_exploration_rate = min_exploration_rate
-        self.actions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  
+        self.actions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
+    def is_collision(self, next_state):
+        # Check if the next state collides with any other autobot's position
+        for bot in self.autobots:
+            if bot.position == next_state and bot.position != self.start:
+                return True
+        return False
 
     def learn(self, episodes=1000):
         for _ in range(episodes):
@@ -31,14 +40,19 @@ class QLearning:
                 action = self.actions[action_idx]
                 next_state = (state[0] + action[0], state[1] + action[1])
 
+                # Check for out of bounds or obstacle
                 if not (0 <= next_state[0] < self.grid.shape[0] and 0 <= next_state[1] < self.grid.shape[1]) or self.grid[next_state] == 1:
-                    reward = -100  
+                    reward = -100  # Penalty for hitting a wall
+                    next_state = state
+                elif self.is_collision(next_state):
+                    reward = -50  # Penalty for colliding with another bot
                     next_state = state
                 elif next_state == self.goal:
-                    reward = 100  
+                    reward = 100  # Reward for reaching the goal
                 else:
-                    reward = -1  
+                    reward = -1  # Small penalty for each step taken
 
+                # Q-learning update
                 old_value = self.q_table[state[0], state[1], action_idx]
                 next_max = np.max(self.q_table[next_state[0], next_state[1]])
                 new_value = (1 - self.learning_rate) * old_value + self.learning_rate * (reward + self.discount_factor * next_max)
@@ -69,51 +83,122 @@ class Autobot:
         self.name = name
         self.grid = grid
         self.simulation = simulation
-        self.q_learning = QLearning(grid, start, end)
+        self.q_learning = QLearning(grid, start, end, self.simulation.autobots)
         self.q_learning.learn(episodes=1000)
         self.path = self.q_learning.get_path()
         self.at_destination = False
         self.time = -1
         self.waiting_time = 0
-        
+        self.is_waiting = False  # Flag to track if autobot is waiting
+        self.gave_way = False  # Flag to track if autobot gave way temporarily
+        self.command_count = 0
+
         self.label_text = self.simulation.ax.text(self.position[1], self.simulation.grid.shape[0] - 1 - self.position[0], self.name,
                                                    ha='center', va='center', color='#333', fontsize=12)
+
+    def is_face_to_face(self, next_step):
+        """ Check if two autobots are moving face-to-face."""
+        for autobot in self.simulation.autobots:
+            if autobot.name != self.name:
+                autobot_next_step = autobot.path[0] if autobot.path else None
+                if autobot_next_step and autobot_next_step == self.position and next_step == autobot.position:
+                    return True
+        return False
+
+    def find_safe_move(self):
+        """ Find a safe adjacent cell to move to temporarily. """
+        for action in self.q_learning.actions:
+            temp_pos = (self.position[0] + action[0], self.position[1] + action[1])
+            # Ensure the temporary position is within bounds, not an obstacle, and not occupied by another bot
+            if 0 <= temp_pos[0] < self.grid.shape[0] and 0 <= temp_pos[1] < self.grid.shape[1] and self.grid[temp_pos] != 1:
+                if not any(bot.position == temp_pos for bot in self.simulation.autobots):
+                    return temp_pos
+        return None  # No safe position found
 
     def move(self):
         if not self.path:
             print(f"{self.name}: Path not found for AI.")
-            return  
-        
-        if not self.at_destination:
-            step = self.path[0]  
+            return
 
+        if not self.at_destination:
+            next_step = self.path[0]
+
+            if self.is_face_to_face(next_step):
+                # Face-to-face situation detected
+                print(f"{self.name} is in a face-to-face situation.")
+                if not self.gave_way:
+                    safe_move = self.find_safe_move()
+                    if safe_move:
+                        print(f"{self.name} gives way and moves temporarily to {safe_move}.")
+                        
+                        # Update label text position after giving way
+                        self.position = safe_move
+                        self.label_text.set_position((safe_move[1], self.simulation.grid.shape[0] - 1 - safe_move[0]))
+                        self.gave_way = True
+                        self.waiting_time += 1
+                        self.command_count += 1
+                        return  # Autobots wait after giving way
+                    else:
+                        print(f"{self.name} cannot find a temporary move.")
+                        self.waiting_time += 1
+                        self.command_count += 1
+                        return
+                else:
+                    print(f"{self.name} has already given way, resuming movement.")
+                    self.gave_way = False  # Reset give way flag
+
+            # Check for collisions
             for autobot in self.simulation.autobots:
-                if autobot.position == step and autobot.name != self.name:
-                    print(f"{self.name} waiting due to collision with {autobot.name}.")
-                    self.waiting_time += 1  
-                    return  
-            
-            print(f"{self.name} moves from {self.position} to {step}.")
-            if step == self.destination:
+                if autobot.position == next_step and autobot.name != self.name:
+                    print(f"{self.name} waiting due to potential collision with {autobot.name}.")
+                    self.is_waiting = True
+                    self.waiting_time += 1
+                    self.command_count += 1
+                    return
+
+            # Proceed with movement if no collisions or face-to-face conflicts
+            print(f"{self.name} moves from {self.position} to {next_step}.")
+            self.command_count += 1
+            if next_step == self.destination:
                 self.at_destination = True
                 print(f"{self.name} reached destination {self.destination}.")
             else:
-                self.label_text.set_position((step[1], self.simulation.grid.shape[0] - 1 - step[0]))
-            self.time += 1
-            self.position = step
-            self.path.pop(0)  
-            
-            self.waiting_time = 0
-        else:
-            print(f"{self.name} is either at destination or has no valid path.")
+                # Update label text position after normal movement
+                self.label_text.set_position((next_step[1], self.simulation.grid.shape[0] - 1 - next_step[0]))
 
-        if self.waiting_time > 5:  
+            self.position = next_step
+            self.path.pop(0)
+            self.time += 1
+            self.is_waiting = False
+            self.waiting_time = 0  # Reset waiting time after moving
+        else:
+            print(f"{self.name} has reached its destination or has no valid path.")
+
+        # If waiting too long, alert user
+        if self.waiting_time > 5:
             messagebox.showinfo("Alert", f"{self.name} cannot reach its destination due to obstacles.")
-            self.at_destination = True  
+            self.at_destination = True
+
+
+    def adjust_text_position(self, next_step):
+        """ Adjusts text position to avoid overlap with other autobots. """
+        other_autobots = [autobot for autobot in self.simulation.autobots if autobot.name != self.name]
+        close_bots = [bot for bot in other_autobots if abs(bot.position[0] - next_step[0]) <= 1 and abs(bot.position[1] - next_step[1]) <= 1]
+
+        if close_bots:
+            # Offset the text position if there are other autobots nearby
+            self.label_text.set_position((next_step[1] + 0.3, self.simulation.grid.shape[0] - 1 - next_step[0] - 0.3))
+        else:
+            # Default text position
+            self.label_text.set_position((next_step[1], self.simulation.grid.shape[0] - 1 - next_step[0]))
+
+
+
 
 
 class AutoBotSimulation:
     def __init__(self, grid, autobot_starts, autobot_goals):
+        plt.rcParams['toolbar'] = 'none'
         self.grid = grid
         self.autobots = []
         self.goal_circles = {}
@@ -129,7 +214,11 @@ class AutoBotSimulation:
         self.ax.set_xlim(-0.5, grid.shape[1] - 0.5)
         self.ax.set_ylim(-0.5, grid.shape[0] - 0.5)
 
-     
+        self.ax.set_xticklabels([])  
+        self.ax.set_yticklabels([]) 
+        self.ax.grid(True, color='white', linewidth=0.5)
+        self.fig.canvas.manager.set_window_title("AutoBot Simulation")
+        
 
         for idx, (start, goal) in enumerate(zip(autobot_starts, autobot_goals)):
             autobot = Autobot(start, goal, f"A{idx+1}", grid, self)  
@@ -152,9 +241,9 @@ class AutoBotSimulation:
             self.goal_circles[autobot.name] = goal_circle
             self.ax.text(autobot.destination[1], grid.shape[0] - 1 - autobot.destination[0], f"B{autobot.name[1]}", ha='center', va='center', color='black', fontsize=12)
 
-        self.next_step_button = Button(plt.axes([0.82, 0.02, 0.12, 0.05]), 'Next Step', color='lightgreen', hovercolor='green')
+        self.next_step_button = Button(plt.axes([0.6, 0.02, 0.40, 0.06]), 'Next Step', color='lightgreen', hovercolor='green')
         self.next_step_button.on_clicked(lambda event: self.next_step())
-        self.auto_button = Button(plt.axes([0.40, 0.02, 0.15, 0.05]), 'Run Simulation', color='skyblue', hovercolor='dodgerblue')
+        self.auto_button = Button(plt.axes([0.0, 0.02, 0.40, 0.06]), 'Run Simulation', color='skyblue', hovercolor='dodgerblue')
         self.auto_button.on_clicked(lambda event: self.auto_run())
 
         self.update()
@@ -182,6 +271,7 @@ class AutoBotSimulation:
         for autobot in self.autobots:
             autobot.move()  
             print(f"{autobot.name} time: {autobot.time}, waiting time: {autobot.waiting_time}, moves:  {autobot.time}")
+            print(f"{autobot.name} total commands executed: {autobot.command_count}")
         self.move_count += 1  
         self.update()  
 
